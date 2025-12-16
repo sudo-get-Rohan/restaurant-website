@@ -90,7 +90,7 @@ const FeaturedDishes = () => {
                 {dishes.map((dish, index) => (
                     <div
                         key={dish.id}
-                        ref={addToRefs}
+                        ref={el => addToRefs(el)}
                         className="group flex flex-col items-center text-center"
                     >
                         {/* Image Container with Hover Effect */}
@@ -119,9 +119,9 @@ const FeaturedDishes = () => {
 
             {/* View Full Menu Button */}
             <div className="text-center mt-16">
-                <button className="px-8 py-3 text-xs font-bold tracking-widest text-white border border-white/30 hover:border-primary hover:text-primary transition-all duration-300 uppercase">
+                <a href="/menu" className="px-8 py-3 text-xs font-bold tracking-widest hover:border-6 hover:text-sm text-white border border-white/30 hover:border-primary hover:text-primary transition-all duration-300 uppercase inline-block">
                     View Full Menu
-                </button>
+                </a>
             </div>
 
         </section>
