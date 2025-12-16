@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+@theme {
+  --color-foreground: rgb(236 240 241);
+  --color-background: rgb(26 31 44);
+}
+
+body {
+  color: var(--color-foreground);
+  background: var(--color-background);
+  overflow-x: hidden;
+}

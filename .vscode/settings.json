@@ -1,0 +1,14 @@
+{
+    "restoreTerminals.terminals": [
+        {
+            "splitTerminals": [
+                {
+                    "name": "expo",
+                    "commands": [
+                        "npm run dev"
+                    ]
+                }
+            ]
+        }
+    ]
+}
