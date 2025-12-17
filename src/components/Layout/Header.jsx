@@ -13,15 +13,15 @@ const Header = () => {
             opacity: 0,
             duration: 1,
             ease: "power4.out",
-            delay: 0.5, // Wait for hero to start
+            delay: 0.5, 
         });
     }, { scope: headerRef });
 
-    // Define correct paths for your new pages
+    // Correct Navigation Paths
     const navItems = [
-        { name: "Food", path: "/menu" },      // Goes to the new Menu page
-        { name: "Drinks", path: "/drinks" },  // Goes to the new Drinks page
-        { name: "About Us", path: "/#about-us" }, // Goes to Home and scrolls to About/Reviews
+        { name: "Food", path: "/menu" },      
+        { name: "Drinks", path: "/drinks" },  
+        { name: "About Us", path: "/#about-us" }, 
     ];
 
     return (
@@ -29,7 +29,7 @@ const Header = () => {
             ref={headerRef}
             className="fixed top-0 left-0 w-full z-50 flex items-center justify-between px-8 py-6 bg-transparent backdrop-blur-sm"
         >
-            {/* Logo - Always links back to Home */}
+            {/* Logo */}
             <Link href="/">
                 <div className="text-2xl font-serif font-bold tracking-widest text-white uppercase cursor-pointer">
                     Atlas <span className="text-primary">Cuisine</span>
@@ -56,9 +56,15 @@ const Header = () => {
                         VIEW MENU
                     </button>
                 </Link>
-                <button className="px-5 py-2 text-xs font-bold tracking-widest text-gray-400 hover:text-gray-700 bg-primary rounded-full hover:bg-yellow-500 transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)]">
-                    RESERVE
-                </button>
+                
+                {/* RESERVE Button: Now Links to /reserve */}
+                <Link href="/reserve">
+                    <button 
+                        className="px-5 py-2 text-xs font-bold tracking-widest text-gray-400 hover:text-gray-700 bg-primary rounded-full hover:bg-yellow-500 transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)]"
+                    >
+                        RESERVE
+                    </button>
+                </Link>
             </div>
         </header>
     );
