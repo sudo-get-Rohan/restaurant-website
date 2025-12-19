@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 
@@ -7,238 +7,647 @@ const ReservePage = () => {
   const containerRef = useRef(null);
   const tableRef = useRef(null);
   const contentRef = useRef(null);
+  const sliderRef = useRef(null);
+  const introOverlayRef = useRef(null);
   
-  // State
-  const [step, setStep] = useState(0); 
+  // TEXT REFS
+  const titleContainerRef = useRef(null); 
+  const bottomTextContainerRef = useRef(null);
+  const reserveLettersRef = useRef([]);
+  const tableLettersRef = useRef([]);
+
+  // Clear refs on render to prevent duplicates in strict mode
+  reserveLettersRef.current = [];
+  tableLettersRef.current = [];
+
+  const [step, setStep] = useState(0);
   const [formData, setFormData] = useState({
     date: "",
-    time: "",
+    time: "12:00",
     guests: "2",
     email: ""
   });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [viewDate, setViewDate] = useState(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [selectedHour, setSelectedHour] = useState(null);
+  const [hoverLine, setHoverLine] = useState(null);
+  const [isDraggingGuest, setIsDraggingGuest] = useState(false);
 
-  // Configuration
   const steps = [
-    { id: 'date', label: 'Select Date', type: 'date' },
-    { id: 'time', label: 'Select Time', type: 'time' },
-    { id: 'guests', label: 'Number of Guests', type: 'select' },
-    { id: 'email', label: 'Contact Email', type: 'email', placeholder: 'you@example.com' }
+    { id: 'date', label: 'Date', type: 'date' },
+    { id: 'time', label: 'Time', type: 'time' },
+    { id: 'guests', label: 'Guests', type: 'slider' },
+    { id: 'email', label: 'Email', type: 'email', placeholder: 'your@email.com' }
   ];
 
   const isCompleted = step === steps.length;
 
-  // Helpers
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    return {
+      days: new Date(year, month + 1, 0).getDate(),
+      firstDay: new Date(year, month, 1).getDay()
+    };
   };
 
-  const canProceed = () => {
-    if (isCompleted) return false;
-    const currentField = steps[step].id;
-    return formData[currentField] !== "";
+  const handleDateSelect = (day) => {
+    const d = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    setFormData(prev => ({
+      ...prev,
+      date: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    }));
+    setShowDatePicker(false);
   };
 
-  // Animation & Navigation Logic
+  const handleTimeSelect = (h) => {
+    setSelectedHour(h);
+    setHoverLine(null);
+  };
+
+  const handleMinuteSelect = (m) => {
+    setFormData(prev => ({
+      ...prev,
+      time: `${selectedHour.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+    }));
+    setShowTimePicker(false);
+    setSelectedHour(null);
+    setHoverLine(null);
+  };
+
+  const updateGuestFromAngle = (clientX, clientY) => {
+    if (!sliderRef.current) return;
+    const rect = sliderRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    let angle = Math.atan2(clientY - centerY, clientX - centerX) * (180 / Math.PI);
+    let activeAngle = angle + 90;
+    if (activeAngle > 180) activeAngle -= 360;
+    const min = -70, max = 70;
+    if (activeAngle < min) activeAngle = min;
+    if (activeAngle > max) activeAngle = max;
+    const guests = Math.round(((activeAngle - min) / (max - min)) * 9) + 1;
+    setFormData(prev => ({ ...prev, guests: guests.toString() }));
+  };
+
+  useEffect(() => {
+    const move = (e) => {
+      if (isDraggingGuest) updateGuestFromAngle(e.clientX, e.clientY);
+    };
+    const up = () => setIsDraggingGuest(false);
+    if (isDraggingGuest) {
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', up);
+    }
+    return () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+  }, [isDraggingGuest]);
+
+  const canProceed = () => !isCompleted && formData[steps[step].id] !== "";
+
   const animateTransition = (nextStep) => {
-    // 1. Rotate Table
-    gsap.to(tableRef.current, {
-        rotation: nextStep * 90,
-        duration: 0.8,
-        ease: "back.out(1.7)",
-    });
-
-    // 2. Animate Content
-    const tl = gsap.timeline();
-    tl.to(contentRef.current, {
+    gsap.timeline()
+      .to(contentRef.current, {
         opacity: 0,
-        scale: 0.8,
-        duration: 0.2,
-    })
-    .to(contentRef.current, {
+        scale: 0.95,
+        y: 10,
+        duration: 0.3,
+        ease: "power2.in"
+      })
+      .set(contentRef.current, { y: -10 })
+      .to(contentRef.current, {
         opacity: 1,
         scale: 1,
-        duration: 0.4,
-    });
+        y: 0,
+        duration: 0.5,
+        ease: "power2.out"
+      });
   };
 
-  const handleTableClick = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const width = rect.width;
-
-    // Right Side Click (Next)
-    if (x > width / 2) {
-        if (!isCompleted && canProceed()) {
-            const next = step + 1;
-            setStep(next);
-            animateTransition(next);
-        } else if (!canProceed() && !isCompleted) {
-             gsap.fromTo(contentRef.current, { x: -10 }, { x: 10, duration: 0.1, repeat: 3, yoyo: true });
-        }
-    } 
-    // Left Side Click (Previous)
-    else {
-        if (step > 0) {
-            const prev = step - 1;
-            setStep(prev);
-            animateTransition(prev);
-        }
+  const handleNext = () => {
+    if (!isCompleted && canProceed()) {
+      const next = step + 1;
+      setStep(next);
+      animateTransition(next);
+    } else if (!canProceed() && !isCompleted) {
+      gsap.fromTo(contentRef.current,
+        { x: -8 },
+        { x: 8, duration: 0.08, repeat: 5, yoyo: true, ease: "power1.inOut" }
+      );
     }
   };
 
-  // Initial Entrance
+  const handlePrev = () => {
+    if (step > 0) {
+      const prev = step - 1;
+      setStep(prev);
+      animateTransition(prev);
+    }
+  };
+
+  // -----------------------------
+  // ANIMATION LOGIC
+  // -----------------------------
   useGSAP(() => {
-    gsap.from(tableRef.current, {
-        scale: 0,
-        rotation: -180,
-        opacity: 0,
-        duration: 1.5,
-        ease: "elastic.out(1, 0.7)",
-        delay: 0.2
+    const tl = gsap.timeline({ delay: 0.5 });
+    
+    // Combine letters for the wave effect
+    // We access the DOM elements directly since refs are populated during render
+    const reserves = titleContainerRef.current.children;
+    const tables = bottomTextContainerRef.current.children;
+    const allLetters = [...reserves, ...tables];
+
+    // 0. INITIAL SETUP
+    // Force both containers to center
+    tl.set(titleContainerRef.current, { 
+      top: "50%", 
+      yPercent: -100, 
+      opacity: 1,
+    })
+    .set(bottomTextContainerRef.current, { 
+      top: "50%", 
+      bottom: "auto", 
+      yPercent: 0, 
+      opacity: 1 // Ensure container is visible
+    })
+    .set(allLetters, {
+      letterSpacing: "-0.6em", 
+      autoAlpha: 0,
+      filter: "blur(10px)",
+      y: 0 
+    })
+    .set(tableRef.current, { scale: 0.5, opacity: 0 });
+
+    // 1. EXPANSION
+    tl.to(allLetters, {
+      letterSpacing: "0em", 
+      autoAlpha: 1,
+      filter: "blur(0px)",
+      duration: 1.5,
+      ease: "power3.out",
+      stagger: {
+        amount: 0.5,
+        from: "center"
+      }
     });
+
+    // 2. THE WAVE
+    tl.to(allLetters, {
+      y: -20,
+      duration: 0.5,
+      ease: "sine.inOut",
+      yoyo: true,
+      repeat: 1,
+      stagger: {
+        each: 0.05,
+        from: "center",
+      }
+    }, "-=0.2");
+
+    // 3. THE SPLIT
+    // Animate RESERVE to top
+    tl.to(titleContainerRef.current, {
+      top: "8%",
+      yPercent: 0,
+      duration: 1.5,
+      ease: "power4.inOut"
+    }, "split");
+
+    // Animate A TABLE to bottom
+    tl.to(bottomTextContainerRef.current, {
+      top: "92%", 
+      yPercent: 0,
+      opacity: 0.3, // Fade to 30% here
+      duration: 1.5,
+      ease: "power4.inOut",
+      onComplete: () => {
+         gsap.set(bottomTextContainerRef.current, { top: "auto", bottom: "5%" });
+      }
+    }, "split");
+
+    // Fade out overlay
+    tl.to(introOverlayRef.current, {
+      opacity: 0,
+      duration: 1,
+      pointerEvents: "none"
+    }, "split+=0.2");
+
+    // 4. REVEAL TABLE & CONTENT
+    tl.to(tableRef.current, {
+      scale: 1,
+      opacity: 1,
+      duration: 1.5,
+      ease: "elastic.out(1, 0.7)"
+    }, "split+=0.3");
+
+    tl.to([contentRef.current, ".step-indicator"], {
+      y: 0,
+      opacity: 1,
+      duration: 0.8,
+      stagger: 0.1
+    }, "-=1");
+
+    // 5. IDLE ANIMATION
+    tl.to(tableRef.current, {
+      scale: 1.02,
+      duration: 3,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+
   }, { scope: containerRef });
 
+  const getPointOnArc = (val, radius = 140) => {
+    const percent = (val - 1) / 9;
+    const angle = -70 + (percent * 140);
+    const rad = (angle - 90) * (Math.PI / 180);
+    return {
+      x: 192 + radius * Math.cos(rad),
+      y: 192 + radius * Math.sin(rad)
+    };
+  };
+
+  const knobPos = getPointOnArc(parseInt(formData.guests) || 1);
+
   return (
-    <main ref={containerRef} className="min-h-screen bg-black flex flex-col items-center justify-center relative overflow-hidden text-white">
-      
-      {/* Background Image */}
-      <div className="absolute inset-0 opacity-40 pointer-events-none">
-        <img 
-            src="https://images.unsplash.com/photo-1559339352-11d035aa65de?q=80&w=1920&auto=format&fit=crop" 
-            alt="Texture" 
-            className="w-full h-full object-cover grayscale"
-        />
-        {/* Dark overlay to make text pop */}
-        <div className="absolute inset-0 bg-black/60"></div>
-      </div>
+    <div ref={containerRef} className="w-full min-h-screen bg-zinc-950 flex items-center justify-center p-4 relative">
 
-      {/* Header Info */}
-      <div className="absolute top-10 md:top-20 text-center z-10 px-4">
-        <h1 className="text-3xl md:text-5xl font-serif text-primary mb-2">Reserve Your Table</h1>
-        <p className="text-gray-400 text-xs tracking-[0.3em] uppercase">
-            {isCompleted ? "Confirm Details" : `Step ${step + 1} of ${steps.length}`}
-        </p>
-      </div>
+      {/* Ambient background glow */}
+      <div className="fixed inset-0 bg-gradient-radial from-amber-950/10 via-transparent to-transparent pointer-events-none" />
 
-      {/* INTERACTIVE TABLE AREA */}
-      <div className="relative z-20 flex items-center justify-center">
-        
-        {/* 1. THE GLASS TABLE (Visual Only) */}
-        <div 
-            ref={tableRef}
-            className="w-75 h-75 md:w-105 md:h-105 rounded-full flex items-center justify-center relative backdrop-blur-md shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/20"
-            style={{ 
-                // Glass Gradient: Two halves with subtle difference in transparency
-                background: "linear-gradient(90deg, rgba(255,255,255,0.03) 50%, rgba(255,255,255,0.08) 50%)",
-                boxShadow: "inset 0 0 20px rgba(255,255,255,0.05), 0 0 30px rgba(0,0,0,0.5)"
-            }}
-        >
-            {/* Glossy Reflection Highlight (Top) */}
-            <div className="absolute top-0 left-0 w-full h-1/2 bg-linear-to-b from-white/10 to-transparent rounded-t-full pointer-events-none"></div>
+      {/* INTRO OVERLAY */}
+      <div
+        ref={introOverlayRef}
+        className="fixed inset-0 bg-zinc-950 z-20 pointer-events-none"
+      />
 
-            {/* Visual Divider Line */}
-            <div className="absolute w-px h-full bg-white/10 left-1/2 -translate-x-1/2 pointer-events-none shadow-[0_0_10px_rgba(255,255,255,0.2)]"></div>
-            
-            {/* Metallic/Gold Compass Points (Buttons Visuals) */}
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-black/50 shadow-[0_0_15px_#d4af37]"></div>
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-black/50 shadow-[0_0_15px_#d4af37]"></div>
-            <div className="absolute left-6 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white/20"></div>
-            <div className="absolute right-6 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white/20"></div>
-        </div>
-
-        {/* 2. The Clickable Overlay */}
-        <div 
-            onClick={handleTableClick}
-            className="absolute w-80 h-80 md:w-112.5 md:h-112.5 rounded-full z-40 cursor-pointer group flex"
-        >
-             {/* Left Half Hover Hint */}
-             <div className="w-1/2 h-full flex items-center justify-start pl-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                 {step > 0 && (
-                     <span className="text-white/20 text-4xl font-bold">‹</span>
-                 )}
-             </div>
-             {/* Right Half Hover Hint */}
-             <div className="w-1/2 h-full flex items-center justify-end pr-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                 {!isCompleted && (
-                     <span className="text-white/20 text-4xl font-bold">›</span>
-                 )}
-             </div>
-        </div>
-
-        {/* 3. The Content Layer */}
-        <div 
-            ref={contentRef}
-            className="absolute z-50 w-64 md:w-80 text-center flex flex-col items-center pointer-events-auto"
-        >
-            {!isCompleted ? (
-                <>
-                    <label className="block text-primary text-sm font-bold tracking-[0.2em] uppercase mb-6 text-shadow-sm">
-                        {steps[step].label}
-                    </label>
-
-                    <div className="w-full mb-4 relative group">
-                        {/* Input Underline Effect */}
-                        <div className="absolute bottom-0 left-0 w-full h-px bg-white/20 group-hover:bg-primary/50 transition-colors"></div>
-                        
-                        {steps[step].type === 'select' ? (
-                            <select
-                                name={steps[step].id}
-                                value={formData[steps[step].id]}
-                                onChange={handleChange}
-                                className="w-full bg-transparent py-4 text-center text-3xl font-serif text-white outline-none appearance-none cursor-pointer"
-                            >
-                                {[1,2,3,4,5,6,7,8].map(n => <option key={n} value={n} className="bg-gray-900 text-base">{n} Guests</option>)}
-                            </select>
-                        ) : (
-                            <input 
-                                type={steps[step].type}
-                                name={steps[step].id}
-                                value={formData[steps[step].id]}
-                                onChange={handleChange}
-                                placeholder={steps[step].placeholder || ""}
-                                className="w-full bg-transparent py-4 text-center text-2xl md:text-3xl font-serif text-white outline-none placeholder:text-white/20"
-                                autoFocus
-                            />
-                        )}
-                    </div>
-                    <p className="text-white/40 text-[10px] uppercase tracking-widest mt-8 font-medium">
-                        Tap Right to Continue
-                    </p>
-                </>
-            ) : (
-                <div className="animate-in fade-in zoom-in duration-500">
-                    <div className="w-16 h-16 bg-primary text-black rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(212,175,55,0.6)]">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                    </div>
-                    <h2 className="text-3xl font-serif text-white mb-2">Ready?</h2>
-                    <div className="text-gray-300 text-sm mb-8 space-y-1 font-light tracking-wide">
-                        <p><span className="text-primary">{formData.date}</span> at <span className="text-primary">{formData.time}</span></p>
-                        <p>{formData.guests} Guests</p>
-                    </div>
-                    <button className="w-full px-8 py-4 bg-yellow-500 text-gray-800 hover:text-black font-bold tracking-widest uppercase rounded hover:bg-white hover:scale-105 transition-all shadow-xl z-50 relative pointer-events-auto">
-                        Confirm
-                    </button>
-                </div>
-            )}
-        </div>
-
-      </div>
-
-      {/* Progress Dots */}
-      <div className="absolute bottom-12 flex gap-4 z-20">
-        {[...Array(5)].map((_, i) => (
-            <div 
-                key={i} 
-                className={`w-1.5 h-1.5 rounded-full transition-all duration-500 ${i <= step ? "bg-primary shadow-[0_0_10px_#d4af37]" : "bg-white/10"}`} 
-            />
+      {/* HEADER: RESERVE */}
+      <div 
+        ref={titleContainerRef} 
+        className="absolute top-[8%] left-0 w-full flex justify-center gap-2 md:gap-4 z-40 pointer-events-none"
+      >
+        {['R', 'E', 'S', 'E', 'R', 'V', 'E'].map((char, i) => (
+          <span
+            key={i}
+            ref={el => reserveLettersRef.current[i] = el}
+            className="text-6xl md:text-7xl mt-6 font-extralight text-white/90 opacity-0 will-change-transform"
+          >
+            {char}
+          </span>
         ))}
       </div>
 
-    </main>
+      {/* FOOTER: A TABLE */}
+      {/* ADDED z-40 here so it sits on top of the black intro overlay (which is z-20) */}
+      <div
+        ref={bottomTextContainerRef}
+        className="absolute bottom-[5%] left-1/2 -translate-x-1/2 text-white/90 text-xl md:text-3xl tracking-[0.5em] font-light uppercase opacity-0 pointer-events-none whitespace-nowrap z-40"
+      >
+        {['A', ' ', 'T', 'A', 'B', 'L', 'E'].map((char, i) => (
+          <span
+            key={i}
+            ref={el => tableLettersRef.current[i] = el}
+            className="inline-block will-change-transform opacity-0"
+          >
+             {char === ' ' ? '\u00A0' : char}
+          </span>
+        ))}
+      </div>
+
+      {/* STEP INDICATORS */}
+      <div className="absolute top-[22%] mt-5 left-1/2 -translate-x-1/2 flex gap-3 opacity-0 step-indicator z-40 pointer-events-none">
+        {[...Array(steps.length + 1)].map((_, i) => (
+          <div
+            key={i}
+            className={`h-1.5 rounded-full transition-all duration-500 ${i === step ? 'bg-amber-500 w-12 shadow-[0_0_12px_rgba(251,191,36,0.5)]' :
+              i < step ? 'bg-amber-500/40 w-8' : 'bg-white/10 w-8'
+              }`}
+          />
+        ))}
+      </div>
+
+      {/* MAIN TABLE CONTAINER */}
+      <div className="relative z-10 mt-30">
+        {/* GLASS TABLE */}
+        <div
+          ref={tableRef}
+          className="relative w-[450px] h-[450px] opacity-0"
+          style={{ transformStyle: 'preserve-3d' }}
+        >
+          <svg viewBox="0 0 400 400" className="absolute inset-0 w-full h-full drop-shadow-2xl">
+            <defs>
+              <radialGradient id="glassGrad" cx="50%" cy="35%">
+                <stop offset="0%" stopColor="rgba(255,255,255,0.15)" />
+                <stop offset="50%" stopColor="rgba(255,255,255,0.06)" />
+                <stop offset="100%" stopColor="rgba(255,255,255,0.02)" />
+              </radialGradient>
+              <linearGradient id="rimGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="rgba(255,255,255,0.3)" />
+                <stop offset="50%" stopColor="rgba(255,255,255,0.05)" />
+                <stop offset="100%" stopColor="rgba(255,255,255,0.15)" />
+              </linearGradient>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="4" result="coloredBlur" />
+                <feMerge>
+                  <feMergeNode in="coloredBlur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <filter id="innerShadow">
+                <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
+                <feOffset dx="0" dy="2" result="offsetblur" />
+                <feComponentTransfer>
+                  <feFuncA type="linear" slope="0.5" />
+                </feComponentTransfer>
+                <feMerge>
+                  <feMergeNode />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            {/* Main glass surface */}
+            <circle
+              cx="200"
+              cy="200"
+              r="195"
+              fill="url(#glassGrad)"
+              filter="url(#innerShadow)"
+              pointerEvents="none"
+            />
+
+            <circle
+              cx="200"
+              cy="200"
+              r="195"
+              fill="none"
+              stroke="url(#rimGrad)"
+              strokeWidth="2"
+              filter="url(#glow)"
+              pointerEvents="none"
+            />
+
+            <circle
+              cx="200"
+              cy="170"
+              r="80"
+              fill="rgba(255,255,255,0.03)"
+              filter="blur(20px)"
+              pointerEvents="none"
+            />
+
+            {/* CLICK ZONES */}
+            <path
+              d="M200 5 A195 195 0 0 0 200 395 Z"
+              fill="rgba(0,0,0,0.001)"
+              style={{ pointerEvents: "all", cursor: step > 0 ? "pointer" : "default" }}
+              onClick={() => step > 0 && handlePrev()}
+            />
+
+            <path
+              d="M200 5 A195 195 0 0 1 200 395 Z"
+              fill="rgba(0,0,0,0.001)"
+              style={{ pointerEvents: "all", cursor: (!isCompleted && canProceed()) ? "pointer" : "default" }}
+              onClick={() => !isCompleted && canProceed() && handleNext()}
+            />
+
+          </svg>
+
+          {/* Subtle cross lines */}
+          {[0, 45, 90, 135].map((deg, i) => (
+            <div
+              key={i}
+              className="absolute top-1/2 left-1/2 w-px h-full bg-gradient-to-b from-transparent via-white/5 to-transparent pointer-events-none"
+              style={{ transform: `translate(-50%, -50%) rotate(${deg}deg)` }}
+            />
+          ))}
+
+          {/* Navigation Arrows */}
+          {step > 0 && (
+            <button
+              onClick={handlePrev}
+              className="absolute left-[8%] top-1/2 -translate-y-1/2 text-white/20 hover:text-amber-500 text-3xl transition-all hover:scale-110 z-30 pointer-events-auto"
+            >
+              ‹
+            </button>
+          )}
+
+          {!isCompleted && canProceed() && (
+            <button
+              onClick={handleNext}
+              className="absolute right-[8%] top-1/2 -translate-y-1/2 text-white/20 hover:text-amber-500 text-3xl transition-all hover:scale-110 z-30 pointer-events-auto"
+            >
+              ›
+            </button>
+          )}
+
+          {/* CONTENT */}
+          <div
+            ref={contentRef}
+            className="absolute inset-0 flex flex-col items-center justify-center opacity-0 pointer-events-none"
+          >
+            {!isCompleted ? (
+              <>
+                <div className="text-[10px] uppercase tracking-[0.3em] text-white/30 mb-6 font-light">
+                  {steps[step].label}
+                </div>
+
+                {/* DATE */}
+                {steps[step].type === 'date' && (
+                  <div className="interactive-area relative pointer-events-auto">
+                    <div
+                      onClick={() => setShowDatePicker(!showDatePicker)}
+                      className="text-4xl md:text-5xl font-extralight text-white/90 cursor-pointer tracking-tight hover:text-amber-500/80 transition-all hover:scale-105"
+                    >
+                      {formData.date || 'Pick a Day'}
+                    </div>
+
+                    {showDatePicker && (
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-zinc-900/95 backdrop-blur-2xl rounded-3xl p-6 shadow-2xl border border-white/10 w-72 z-40">
+                        <div className="flex items-center justify-between mb-4">
+                          <button
+                            onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))}
+                            className="text-amber-500/40 hover:text-amber-500 text-xl transition-colors"
+                          >
+                            ‹
+                          </button>
+                          <span className="text-white/60 text-xs tracking-widest font-light">
+                            {months[viewDate.getMonth()].toUpperCase()}
+                          </span>
+                          <button
+                            onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))}
+                            className="text-amber-500/40 hover:text-amber-500 text-xl transition-colors"
+                          >
+                            ›
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-1">
+                          {[...Array(getDaysInMonth(viewDate).firstDay)].map((_, i) => (
+                            <div key={`empty-${i}`} />
+                          ))}
+                          {[...Array(getDaysInMonth(viewDate).days)].map((_, i) => (
+                            <button
+                              key={i}
+                              onClick={() => handleDateSelect(i + 1)}
+                              className="w-8 h-8 text-xs font-light text-white/30 hover:text-amber-500 hover:bg-amber-500/10 rounded-full transition-all"
+                            >
+                              {i + 1}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* GUESTS SLIDER */}
+                {steps[step].type === 'slider' && (
+                  <div className="interactive-area relative pointer-events-auto">
+                    <div className="relative w-80 h-80">
+                      <svg ref={sliderRef} viewBox="0 0 384 384" className="w-full h-full">
+                        <defs>
+                          <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="rgba(251,191,36,0.1)" />
+                            <stop offset="50%" stopColor="rgba(251,191,36,0.3)" />
+                            <stop offset="100%" stopColor="rgba(251,191,36,0.1)" />
+                          </linearGradient>
+                        </defs>
+                        <path
+                          d={`M ${192 + 140 * Math.cos((-160) * Math.PI / 180)} ${192 + 140 * Math.sin((-160) * Math.PI / 180)} A 140 140 0 0 1 ${192 + 140 * Math.cos((-20) * Math.PI / 180)} ${192 + 140 * Math.sin((-20) * Math.PI / 180)}`}
+                          stroke="url(#arcGrad)"
+                          strokeWidth="3"
+                          fill="none"
+                          strokeLinecap="round"
+                        />
+                        <circle
+                          cx={knobPos.x}
+                          cy={knobPos.y}
+                          r="20"
+                          fill="rgb(251,191,36)"
+                          className="cursor-grab active:cursor-grabbing drop-shadow-[0_0_16px_rgba(251,191,36,0.6)]"
+                          onMouseDown={() => setIsDraggingGuest(true)}
+                        />
+                      </svg>
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-6xl font-extralight text-white/90 pointer-events-none">
+                        {formData.guests}
+                      </div>
+                      <div className="absolute bottom-12 left-1/2 -translate-x-1/2 text-[10px] text-white/20 tracking-widest pointer-events-none">
+                        PARTY SIZE
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TIME */}
+                {steps[step].type === 'time' && (
+                  <div className="interactive-area relative pointer-events-auto">
+                    <div
+                      onClick={() => setShowTimePicker(true)}
+                      className="text-6xl font-extralight text-white/90 cursor-pointer hover:text-amber-500/80 transition-all tracking-tight"
+                    >
+                      {formData.time}
+                    </div>
+
+                    {showTimePicker && (
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-zinc-900/95 backdrop-blur-2xl rounded-full border border-white/10 shadow-2xl z-40">
+                        {hoverLine && (
+                          <div
+                            className="absolute top-1/2 left-1/2 bg-amber-500 origin-bottom shadow-[0_0_20px_rgba(251,191,36,0.6)]"
+                            style={{
+                              width: '4px',
+                              height: `${hoverLine.length}%`,
+                              clipPath: 'polygon(50% 0%, 100% 100%, 0% 100%)',
+                              transform: `translate(-50%, -100%) rotate(${hoverLine.angle}deg)`
+                            }}
+                          />
+                        )}
+
+                        {selectedHour === null ? (
+                          [...Array(12)].map((_, i) => {
+                            const ang = (i * 30) - 90;
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => setSelectedHour(i + 12)}
+                                onMouseEnter={() => setHoverLine({ angle: ang + 90, length: 35 })}
+                                onMouseLeave={() => setHoverLine(null)}
+                                className="absolute w-8 h-8 text-sm font-light text-white/25 hover:text-amber-500 transition-colors z-20 flex items-center justify-center hover:scale-110"
+                                style={{
+                                  left: `${50 + 40 * Math.cos(ang * Math.PI / 180)}%`,
+                                  top: `${50 + 40 * Math.sin(ang * Math.PI / 180)}%`,
+                                  transform: 'translate(-50%, -50%)'
+                                }}
+                              >
+                                {i + 12}
+                              </button>
+                            );
+                          })
+                        ) : (
+                          [...Array(12)].map((_, i) => {
+                            const ang = (i * 30) - 90;
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => handleMinuteSelect(i * 5)}
+                                onMouseEnter={() => setHoverLine({ angle: ang + 90, length: 35 })}
+                                onMouseLeave={() => setHoverLine(null)}
+                                className="absolute w-8 h-8 text-sm font-light text-white/25 hover:text-amber-500 transition-colors z-20 flex items-center justify-center hover:scale-110"
+                                style={{
+                                  left: `${50 + 40 * Math.cos(ang * Math.PI / 180)}%`,
+                                  top: `${50 + 40 * Math.sin(ang * Math.PI / 180)}%`,
+                                  transform: 'translate(-50%, -50%)'
+                                }}
+                              >
+                                {(i * 5).toString().padStart(2, '0')}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* EMAIL */}
+                {steps[step].type === 'email' && (
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder={steps[step].placeholder}
+                    autoFocus
+                    className="interactive-area bg-transparent border-b border-white/10 text-white/90 text-2xl text-center py-3 px-4 outline-none focus:border-amber-500 transition-colors w-72 font-light placeholder:text-white/20 pointer-events-auto"
+                  />
+                )}
+              </>
+            ) : (
+              <div className="text-center pointer-events-auto">
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-6 border border-amber-500/30">
+                  <span className="text-3xl text-amber-500">✓</span>
+                </div>
+                <div className="text-white/50 text-sm font-light mb-1">{formData.date} at {formData.time}</div>
+                <div className="text-white/50 text-sm font-light mb-8">Party of {formData.guests}</div>
+                <button className="px-8 py-3 bg-amber-500 text-zinc-950 rounded-full font-medium text-sm hover:bg-amber-400 transition-all hover:scale-105 shadow-[0_0_30px_rgba(251,191,36,0.3)]">
+                  Confirm Booking
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+    </div>
   );
 };
 
-export default ReservePage;
+export default ReservePage; 
