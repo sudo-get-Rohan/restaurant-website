@@ -33,6 +33,21 @@ const ReservePage = () => {
   const [selectedHour, setSelectedHour] = useState(null);
   const [hoverLine, setHoverLine] = useState(null);
   const [isDraggingGuest, setIsDraggingGuest] = useState(false);
+  
+  // New State for Time Logic
+  const [isPm, setIsPm] = useState(false);
+
+  // INITIALIZE TIME ON MOUNT
+  useEffect(() => {
+    const now = new Date();
+    // Format to HH:MM
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    
+    setFormData(prev => ({ ...prev, time: formattedTime }));
+    setIsPm(hours >= 12);
+  }, []);
 
   const steps = [
     { id: 'date', label: 'Date', type: 'date' },
@@ -71,9 +86,11 @@ const ReservePage = () => {
   };
 
   const handleMinuteSelect = (m) => {
+    // Construct time string based on selected hour and minute
+    const timeString = `${selectedHour.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     setFormData(prev => ({
       ...prev,
-      time: `${selectedHour.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+      time: timeString
     }));
     setShowTimePicker(false);
     setSelectedHour(null);
@@ -159,13 +176,11 @@ const ReservePage = () => {
     const tl = gsap.timeline({ delay: 0.5 });
     
     // Combine letters for the wave effect
-    // We access the DOM elements directly since refs are populated during render
     const reserves = titleContainerRef.current.children;
     const tables = bottomTextContainerRef.current.children;
     const allLetters = [...reserves, ...tables];
 
     // 0. INITIAL SETUP
-    // Force both containers to center
     tl.set(titleContainerRef.current, { 
       top: "50%", 
       yPercent: -100, 
@@ -175,7 +190,7 @@ const ReservePage = () => {
       top: "50%", 
       bottom: "auto", 
       yPercent: 0, 
-      opacity: 1 // Ensure container is visible
+      opacity: 1 
     })
     .set(allLetters, {
       letterSpacing: "-0.6em", 
@@ -212,7 +227,6 @@ const ReservePage = () => {
     }, "-=0.2");
 
     // 3. THE SPLIT
-    // Animate RESERVE to top
     tl.to(titleContainerRef.current, {
       top: "8%",
       yPercent: 0,
@@ -220,11 +234,10 @@ const ReservePage = () => {
       ease: "power4.inOut"
     }, "split");
 
-    // Animate A TABLE to bottom
     tl.to(bottomTextContainerRef.current, {
       top: "92%", 
       yPercent: 0,
-      opacity: 0.3, // Fade to 30% here
+      opacity: 0.3,
       duration: 1.5,
       ease: "power4.inOut",
       onComplete: () => {
@@ -232,7 +245,6 @@ const ReservePage = () => {
       }
     }, "split");
 
-    // Fade out overlay
     tl.to(introOverlayRef.current, {
       opacity: 0,
       duration: 1,
@@ -306,7 +318,6 @@ const ReservePage = () => {
       </div>
 
       {/* FOOTER: A TABLE */}
-      {/* ADDED z-40 here so it sits on top of the black intro overlay (which is z-20) */}
       <div
         ref={bottomTextContainerRef}
         className="absolute bottom-[5%] left-1/2 -translate-x-1/2 text-white/90 text-xl md:text-3xl tracking-[0.5em] font-light uppercase opacity-0 pointer-events-none whitespace-nowrap z-40"
@@ -339,7 +350,7 @@ const ReservePage = () => {
         {/* GLASS TABLE */}
         <div
           ref={tableRef}
-          className="relative w-112.5 h-112.5 opacity-0"
+          className="relative w-[450px] h-[450px] opacity-0"
           style={{ transformStyle: 'preserve-3d' }}
         >
           <svg viewBox="0 0 400 400" className="absolute inset-0 w-full h-full drop-shadow-2xl">
@@ -425,7 +436,7 @@ const ReservePage = () => {
           {[0, 45, 90, 135].map((deg, i) => (
             <div
               key={i}
-              className="absolute top-1/2 left-1/2 w-px h-full bg-linear-to-b from-transparent via-white/5 to-transparent pointer-events-none"
+              className="absolute top-1/2 left-1/2 w-px h-full bg-gradient-to-b from-transparent via-white/5 to-transparent pointer-events-none"
               style={{ transform: `translate(-50%, -50%) rotate(${deg}deg)` }}
             />
           ))}
@@ -559,9 +570,29 @@ const ReservePage = () => {
 
                     {showTimePicker && (
                       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-zinc-900/95 backdrop-blur-2xl rounded-full border border-white/10 shadow-2xl z-40">
+                        
+                        {/* Center Knob */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(251,191,36,1)] z-50" />
+                        
+                        {/* AM/PM Toggle - Positioned below center */}
+                        <div className="absolute top-[65%] left-1/2 -translate-x-1/2 flex gap-4 z-50">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setIsPm(false); }}
+                                className={`text-xs font-bold tracking-widest transition-colors ${!isPm ? 'text-amber-500 scale-110' : 'text-white/30 hover:text-white/60'}`}
+                            >
+                                AM
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setIsPm(true); }}
+                                className={`text-xs font-bold tracking-widest transition-colors ${isPm ? 'text-amber-500 scale-110' : 'text-white/30 hover:text-white/60'}`}
+                            >
+                                PM
+                            </button>
+                        </div>
+
                         {hoverLine && (
                           <div
-                            className="absolute top-1/2 left-1/2 bg-amber-500 origin-bottom shadow-[0_0_20px_rgba(251,191,36,0.6)]"
+                            className="absolute top-1/2 left-1/2 bg-amber-500 origin-bottom shadow-[0_0_20px_rgba(251,191,36,0.6)] transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
                             style={{
                               width: '4px',
                               height: `${hoverLine.length}%`,
@@ -574,20 +605,26 @@ const ReservePage = () => {
                         {selectedHour === null ? (
                           [...Array(12)].map((_, i) => {
                             const ang = (i * 30) - 90;
+                            // Calculate display number based on AM/PM
+                            let num = i === 0 ? 12 : i;
+                            if (isPm) {
+                                num = i === 0 ? 12 : i + 12;
+                            }
+                            
                             return (
                               <button
                                 key={i}
-                                onClick={() => setSelectedHour(i + 12)}
+                                onClick={() => setSelectedHour(num)}
                                 onMouseEnter={() => setHoverLine({ angle: ang + 90, length: 35 })}
                                 onMouseLeave={() => setHoverLine(null)}
-                                className="absolute w-8 h-8 text-sm font-light text-white/25 hover:text-amber-500 transition-colors z-20 flex items-center justify-center hover:scale-110"
+                                className="absolute w-8 h-8 text-sm font-light text-white/25 border border-white/10 rounded-full bg-white/5 hover:text-amber-500 transition-colors z-20 flex items-center justify-center hover:scale-110"
                                 style={{
                                   left: `${50 + 40 * Math.cos(ang * Math.PI / 180)}%`,
                                   top: `${50 + 40 * Math.sin(ang * Math.PI / 180)}%`,
                                   transform: 'translate(-50%, -50%)'
                                 }}
                               >
-                                {i + 12}
+                                {num}
                               </button>
                             );
                           })
@@ -600,7 +637,7 @@ const ReservePage = () => {
                                 onClick={() => handleMinuteSelect(i * 5)}
                                 onMouseEnter={() => setHoverLine({ angle: ang + 90, length: 35 })}
                                 onMouseLeave={() => setHoverLine(null)}
-                                className="absolute w-8 h-8 text-sm font-light text-white/25 hover:text-amber-500 transition-colors z-20 flex items-center justify-center hover:scale-110"
+                                className="absolute w-8 h-8 text-sm font-light text-white/25 border border-white/10 rounded-full bg-white/5 hover:text-amber-500 transition-colors z-20 flex items-center justify-center hover:scale-110"
                                 style={{
                                   left: `${50 + 40 * Math.cos(ang * Math.PI / 180)}%`,
                                   top: `${50 + 40 * Math.sin(ang * Math.PI / 180)}%`,
@@ -650,4 +687,4 @@ const ReservePage = () => {
   );
 };
 
-export default ReservePage; 
+export default ReservePage;
