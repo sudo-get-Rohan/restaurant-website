@@ -339,7 +339,7 @@ const ReservePage = () => {
         {/* GLASS TABLE */}
         <div
           ref={tableRef}
-          className="relative w-[450px] h-[450px] opacity-0"
+          className="relative w-112.5 h-112.5 opacity-0"
           style={{ transformStyle: 'preserve-3d' }}
         >
           <svg viewBox="0 0 400 400" className="absolute inset-0 w-full h-full drop-shadow-2xl">
@@ -425,7 +425,7 @@ const ReservePage = () => {
           {[0, 45, 90, 135].map((deg, i) => (
             <div
               key={i}
-              className="absolute top-1/2 left-1/2 w-px h-full bg-gradient-to-b from-transparent via-white/5 to-transparent pointer-events-none"
+              className="absolute top-1/2 left-1/2 w-px h-full bg-linear-to-b from-transparent via-white/5 to-transparent pointer-events-none"
               style={{ transform: `translate(-50%, -50%) rotate(${deg}deg)` }}
             />
           ))}
